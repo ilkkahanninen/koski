@@ -10,6 +10,9 @@ import org.scalatra.{Cookie, CookieOptions, ScalatraBase}
 import scala.collection.JavaConverters._
 
 trait SSOSupport extends ScalatraBase with Logging {
+  // The default behavior breaks things since Scalatra 2.7.0
+  decodePercentEncodedPath = false
+
   def application: UserAuthenticationContext
 
   def isHttps = {
