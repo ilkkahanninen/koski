@@ -17,7 +17,7 @@
     <json4s.version>3.6.8</json4s.version>
     <awssdk.version>2.15.28</awssdk.version>
     <jetty.version>9.4.38.v20210224</jetty.version>
-    <http4s.version>0.16.6a</http4s.version>
+    <http4s.version>0.20.23</http4s.version>
     <prometheus.client.version>0.0.17</prometheus.client.version>
     <scoverage.plugin.version>1.1.1</scoverage.plugin.version>
     <finalName>${project.artifactId}-${project.version}</finalName>
@@ -456,6 +456,7 @@
             <arg>-Ywarn-dead-code</arg>
             <arg>-Xlint:missing-interpolator</arg>
             <arg>-Xfatal-warnings</arg>
+            <arg>-Ypartial-unification</arg>
           </args>
         </configuration>
         <executions>

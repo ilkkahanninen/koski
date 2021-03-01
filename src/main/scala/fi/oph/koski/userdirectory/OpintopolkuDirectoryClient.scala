@@ -9,18 +9,19 @@ import fi.oph.koski.log.Logging
 import fi.oph.koski.organisaatio.Opetushallitus
 import fi.oph.koski.schema.OidOrganisaatio
 import fi.vm.sade.utils.cas.CasClientException
+import org.http4s.Status.Created
+import org.http4s._
+import org.http4s.client._
+import org.http4s.client.dsl.io._
+import org.http4s.Method._
+import org.http4s.headers.Location
+import cats.effect.IO
+import org.http4s.Uri.resolve
 
 /**
   * Replacement for the LDAP-based directory client
   */
 class OpintopolkuDirectoryClient(virkailijaUrl: String, config: Config) extends DirectoryClient with Logging {
-
-  import org.http4s.Status.Created
-  import org.http4s._
-  import org.http4s.client._
-  import org.http4s.dsl._
-  import org.http4s.headers.Location
-  import scalaz.concurrent.Task
   private val tgtPattern = "(.*TGT-.*)".r
   private val http = Http(virkailijaUrl, "kayttoikeuspalvelu")
   private val käyttöoikeusServiceClient = KäyttöoikeusServiceClient(config)
@@ -34,11 +35,11 @@ class OpintopolkuDirectoryClient(virkailijaUrl: String, config: Config) extends 
     }).flatMap { case (oid: String, käyttöoikeudet: List[Käyttöoikeus]) => findKäyttäjä(oid, käyttöoikeudet) }
 
   override def authenticate(userid: String, wrappedPassword: Password): Boolean = {
-    val tgtUri: TGTUrl = resolve(Uri.fromString(virkailijaUrl).toOption.get, uri("/cas/v1/tickets"))
+    val tgtUri: TGTUrl = resolve(Uri.fromString(virkailijaUrl).toOption.get, uri"/cas/v1/tickets")
 
-    Http.runTask(http.client.fetch(
+    Http.runTask(http.client.run(
       POST(tgtUri, UrlForm("username" -> userid, "password" -> wrappedPassword.password))
-        .putHeaders(Header("Caller-Id", OpintopolkuCallerId.koski))) {
+        .putHeaders(Header("Caller-Id", OpintopolkuCallerId.koski))).use {
       case Created(resp) =>
         val found: TGTUrl = resp.headers.get(Location).map(_.value) match {
           case Some(tgtPattern(tgtUrl)) =>
@@ -51,10 +52,10 @@ class OpintopolkuDirectoryClient(virkailijaUrl: String, config: Config) extends 
           case None =>
             throw new CasClientException(s"TGT decoding failed at ${tgtUri}: No location header at")
         }
-        Task.now(true)
+        IO.pure(true)
       case Locked(resp) =>
         logger.warn(s"Access denied, username $userid is locked")
-        Task.now(false)
+        IO.pure(false)
       case r => r.as[String].map { body =>
         if (body.contains("authentication_exceptions") || body.contains("error.authentication.credentials.bad")) {
           false

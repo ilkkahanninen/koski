@@ -52,7 +52,7 @@ case class RemoteYtrClient(rootUrl: String, user: String, password: String, inse
   private val clientConfig: BlazeClientConfig = if (insecure) BlazeClientConfig.insecure else BlazeClientConfig.defaultConfig
   private val http = Http(rootUrl, ClientWithBasicAuthentication(Http.newClient("ytr", clientConfig), user, password))
   def oppijaJsonByHetu(hetu: String): Option[JValue] = {
-    http.get(uri"/api/oph-koski/student/$hetu")(Http.parseJsonOptional[JValue]).unsafePerformSync
+    http.get(uri"/api/oph-koski/student/$hetu")(Http.parseJsonOptional[JValue]).unsafeRunSync()
   }
 }
 

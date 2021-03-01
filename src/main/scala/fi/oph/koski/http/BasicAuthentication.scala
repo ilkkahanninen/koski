@@ -1,8 +1,11 @@
 package fi.oph.koski.http
 
+import cats.data.Kleisli
+
 import java.util.Base64
 import org.http4s.client.Client
-import org.http4s.{Header, Request, Service}
+import org.http4s.{Header, Headers, Request, Service}
+import cats.effect._
 
 object BasicAuthentication {
   def basicAuthHeader(user: String, password: String) = {
@@ -12,14 +15,12 @@ object BasicAuthentication {
 }
 
 object ClientWithBasicAuthentication {
-  def apply(wrappedClient: Client, username: String, password: String): Client = {
+  def apply(wrappedClient: Client[IO], username: String, password: String): Client[IO] = {
     val (name, value) = BasicAuthentication.basicAuthHeader(username, password)
 
-    def open(req: Request) = wrappedClient.open(req.withHeaders(req.headers ++ List(Header(name, value))))
+    def open(req: Request[IO]) = wrappedClient.run(req.putHeaders(Header(name, value)))
 
-    Client(
-      open = Service.lift(open _),
-      shutdown = wrappedClient.shutdown
-    )
+    Client.apply[IO](open)
+    // TODO shutdown = wrappedClient.shutdown
   }
 }

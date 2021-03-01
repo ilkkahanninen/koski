@@ -4,23 +4,30 @@ import java.net.URLEncoder.encode
 import java.nio.charset.StandardCharsets
 import fi.oph.koski.config.KoskiApplication
 import fi.oph.koski.http.{Http, KoskiErrorCategory, OpintopolkuCallerId}
-import fi.oph.koski.koskiuser.{KoskiSpecificAuthenticationSupport, AuthenticationUser, DirectoryClientLogin, UserLanguage}
+import fi.oph.koski.koskiuser.{AuthenticationUser, DirectoryClientLogin, KoskiSpecificAuthenticationSupport, UserLanguage}
 import fi.oph.koski.log.LogUserContext
 import fi.oph.koski.servlet.{NoCache, VirkailijaHtmlServlet}
 import fi.vm.sade.utils.cas.{CasClient, CasClientException, CasLogout}
 import fi.vm.sade.utils.cas.CasClient.{OppijaAttributes, Username}
-import fi.oph.koski.henkilo.{Hetu, OppijaHenkilö}
+import fi.oph.koski.henkilo.OppijaHenkilö
 import fi.oph.koski.json.JsonSerializer.writeWithRoot
-import scalaz.concurrent.Task
 import fi.oph.koski.schema.{Nimitiedot, UusiHenkilö}
 import org.scalatra.{Cookie, CookieOptions}
 
 import scala.util.control.NonFatal
+import scala.concurrent.duration.DurationInt
+import cats.effect._
+import fi.oph.koski.db.GlobalExecutionContext
 
 /**
   *  This is where the user lands after a CAS login / logout
   */
-class CasServlet()(implicit val application: KoskiApplication) extends VirkailijaHtmlServlet with KoskiSpecificAuthenticationSupport with NoCache {
+class CasServlet()(implicit val application: KoskiApplication)
+  extends VirkailijaHtmlServlet
+    with KoskiSpecificAuthenticationSupport
+    with NoCache
+    with GlobalExecutionContext {
+
   private val casVirkailijaClient = new CasClient(application.config.getString("opintopolku.virkailija.url") + "/cas", Http.newClient("cas.serviceticketvalidation"), OpintopolkuCallerId.koski)
   private val casOppijaClient = new CasClient(application.config.getString("opintopolku.oppija.url") + "/cas-oppija", Http.newClient("cas.serviceticketvalidation"), OpintopolkuCallerId.koski)
   private val koskiSessions = application.koskiSessionRepository
@@ -168,9 +175,13 @@ class CasServlet()(implicit val application: KoskiApplication) extends Virkailij
       case None => casOppijaServiceUrl
     }
 
-    val attrs: Either[Throwable, OppijaAttributes] = casOppijaClient.validateServiceTicket(url)(ticket, casOppijaClient.decodeOppijaAttributes).handleWith {
-      case NonFatal(t) => Task.fail(new CasClientException(s"Failed to validate service ticket $t"))
-    }.unsafePerformSyncAttemptFor(10000).toEither
+    val attrs: Either[Throwable, OppijaAttributes] = casOppijaClient
+      .validateServiceTicket(url)(ticket, casOppijaClient.decodeOppijaAttributes)
+      .handleErrorWith {
+        case NonFatal(t) => IO.raiseError(new CasClientException(s"Failed to validate service ticket $t"))
+      }.attempt
+      .timeout(10.seconds)
+      .unsafeRunSync()
     logger.debug(s"attrs response: $attrs")
     attrs match {
       case Right(attrs) => {
@@ -185,9 +196,13 @@ class CasServlet()(implicit val application: KoskiApplication) extends Virkailij
 
   def validateVirkailijaServiceTicket(ticket: String): Username = {
     mockUsernameForAllVirkailijaTickets.getOrElse({
-      val attrs: Either[Throwable, Username] = casVirkailijaClient.validateServiceTicket(casVirkailijaServiceUrl)(ticket, casVirkailijaClient.decodeVirkailijaUsername).handleWith {
-        case NonFatal(t) => Task.fail(new CasClientException(s"Failed to validate service ticket $t"))
-      }.unsafePerformSyncAttemptFor(10000).toEither
+      val attrs: Either[Throwable, Username] = casVirkailijaClient
+        .validateServiceTicket(casVirkailijaServiceUrl)(ticket, casVirkailijaClient.decodeVirkailijaUsername)
+        .handleErrorWith {
+          case NonFatal(t) => IO.raiseError(new CasClientException(s"Failed to validate service ticket $t"))
+        }.attempt
+        .timeout(10.seconds)
+        .unsafeRunSync()
       logger.debug(s"attrs response: $attrs")
       attrs match {
         case Right(attrs) => {

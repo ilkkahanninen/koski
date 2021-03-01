@@ -8,6 +8,7 @@ import fi.oph.koski.perustiedot.OpiskeluoikeusTilasto
 import fi.oph.koski.tiedonsiirto.TiedonsiirtoTilasto
 import fi.oph.koski.userdirectory.KäyttöoikeusServiceClient
 
+import scalaz.concurrent.Task.gatherUnordered
 import scala.concurrent.duration.DurationInt
 
 
@@ -31,7 +32,6 @@ class KoskiStats(application: KoskiApplication) extends KoskiPulssi {
   def oppijoidenMäärä: Int = perustiedotStats.henkilöCount.getOrElse(0)
   def käyttöoikeudet: KäyttöoikeusTilasto = {
     val ryhmät: Map[String, List[String]] = if (!application.fixtureCreator.shouldUseFixtures) {
-      import scalaz.concurrent.Task.gatherUnordered
       val client = KäyttöoikeusServiceClient(application.config)
 
       Http.runTask(client.findKäyttöoikeusryhmät.flatMap { ryhmät =>

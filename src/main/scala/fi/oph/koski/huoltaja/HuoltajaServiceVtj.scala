@@ -3,7 +3,6 @@ package fi.oph.koski.huoltaja
 import com.typesafe.config.Config
 import fi.oph.koski.henkilo.HenkilöRepository
 import fi.oph.koski.http.{HttpStatus, KoskiErrorCategory}
-import fi.oph.koski.koskiuser.KoskiSpecificSession
 import fi.oph.koski.log.Logging
 
 

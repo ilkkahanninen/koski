@@ -1,6 +1,7 @@
 package fi.oph.koski.healthcheck
 
 import java.util.concurrent.TimeoutException
+
 import fi.oph.koski.cache.RefreshingCache.Params
 import fi.oph.koski.cache._
 import fi.oph.koski.config.{Environment, KoskiApplication}
@@ -16,7 +17,7 @@ import fi.oph.koski.schema._
 import fi.oph.koski.userdirectory.Password
 import fi.oph.koski.util.Timing
 import fi.vm.sade.utils.cas.CasClientException
-import scalaz.concurrent.Task
+import cats.effect.IO
 
 import scala.concurrent.duration.{Duration, DurationInt}
 import scala.language.postfixOps
@@ -147,7 +148,7 @@ trait HealthCheck extends Logging {
   }
 
   private def get[T](key: String, f: => T, timeout: Duration = 5 seconds): Either[HttpStatus, T] = try {
-    Right(Task(f).unsafePerformSyncFor(timeout))
+    Right(IO(f).unsafeRunTimed(timeout).get) // TODO: unsafeRunTimed ei ole tarkoitettu tuotantokoodille
   } catch {
     case e: HttpStatusException =>
       Left(HttpStatus(e.status, List(ErrorDetail(key, e.text))))

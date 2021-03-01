@@ -8,7 +8,7 @@ import fi.oph.koski.perustiedot.{OpiskeluoikeudenPerustiedotIndexer, Opiskeluoik
 import fi.oph.koski.schema.Henkilö.Oid
 import fi.oph.koski.schema.TäydellisetHenkilötiedot
 import fi.oph.koski.util.Timing
-import org.http4s._
+
 
 trait OpintopolkuHenkilöFacade {
   def findOppijaByOid(oid: String): Option[LaajatOppijaHenkilöTiedot]
@@ -44,7 +44,7 @@ object RemoteOpintopolkuHenkilöFacade {
   }
 }
 
-class RemoteOpintopolkuHenkilöFacade(oppijanumeroRekisteriClient: OppijanumeroRekisteriClient) extends OpintopolkuHenkilöFacade with EntityDecoderInstances with Timing {
+class RemoteOpintopolkuHenkilöFacade(oppijanumeroRekisteriClient: OppijanumeroRekisteriClient) extends OpintopolkuHenkilöFacade with Timing {
   def findOppijaByOid(oid: String): Option[LaajatOppijaHenkilöTiedot] =
     runTask(oppijanumeroRekisteriClient.findOppijaByOid(oid))
 
