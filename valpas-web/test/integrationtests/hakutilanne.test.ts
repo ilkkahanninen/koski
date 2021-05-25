@@ -27,15 +27,14 @@ import { eventually } from "../integrationtests-env/browser/utils"
 import {
   hakutilannePath,
   jklNormaalikouluTableContent,
+  openOppijaView,
 } from "./hakutilanne.shared"
+import { jyväskylänNormaalikouluOid, kulosaarenAlaAsteOid } from "./oids"
 
 const selectOrganisaatio = (index: number) =>
   dropdownSelect("#organisaatiovalitsin", index)
 const selectOrganisaatioByNimi = (text: string) =>
   dropdownSelectContains("#organisaatiovalitsin", text)
-
-const clickOppija = (index: number) =>
-  clickElement(`.hakutilanne tr:nth-child(${index + 1}) td:first-child a`)
 
 const clickAndVerifyMuuHaku = async (index: number) => {
   const currentState = await isMuuHakuChecked(index)
@@ -61,11 +60,10 @@ const kulosaarenAlaAsteTableContent = `
 `
 
 const jklHakutilannePath = createHakutilannePathWithOrg("/virkailija", {
-  organisaatioOid: "1.2.246.562.10.14613773812",
+  organisaatioOid: jyväskylänNormaalikouluOid,
 })
-const kulosaariOid = "1.2.246.562.10.64353470871"
 const kulosaariHakutilannePath = createHakutilannePathWithOrg("/virkailija", {
-  organisaatioOid: kulosaariOid,
+  organisaatioOid: kulosaarenAlaAsteOid,
 })
 const kulosaarenOppijaOid = "1.2.246.562.24.00000000029"
 const saksalainenKouluOid = "1.2.246.562.10.45093614456"
@@ -146,12 +144,12 @@ describe("Hakutilannenäkymä", () => {
     await selectOrganisaatio(1)
     await urlIsEventually(pathToUrl(kulosaariHakutilannePath))
 
-    await clickOppija(3)
+    await openOppijaView(kulosaarenOppijaOid)
     await urlIsEventually(
       pathToUrl(
         createOppijaPath("/virkailija", {
           oppijaOid: kulosaarenOppijaOid,
-          organisaatioOid: kulosaariOid,
+          organisaatioOid: kulosaarenAlaAsteOid,
         })
       )
     )
