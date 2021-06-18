@@ -237,13 +237,7 @@ class ValpasKuntailmoitusService(
     // Oikeus on kaikilla muilla paitsi maksuttomuuskäyttäjillä.
     HttpStatus.foldEithers(
       oppijatHakutilanteilla.map(oppijaHakutilanteilla =>
-        accessResolver.withOppijaAccessAsAnyRole(
-          Seq(
-            ValpasRooli.OPPILAITOS_HAKEUTUMINEN,
-            ValpasRooli.OPPILAITOS_SUORITTAMINEN,
-            ValpasRooli.KUNTA
-          )
-        )(oppijaHakutilanteilla.oppija)
+        withOikeusTehdäKuntailmoitusOppijalle(oppijaHakutilanteilla.oppija)
       )
     )
       .flatMap(_ => {
@@ -258,6 +252,18 @@ class ValpasKuntailmoitusService(
           Left(ValpasErrorCategory.forbidden.oppijat("Käyttäjällä ei ole oikeuksia kaikkien oppijoiden tietoihin"))
         }
       })
+  }
+
+  def withOikeusTehdäKuntailmoitusOppijalle(
+    oppija: ValpasOppijaLaajatTiedot
+  )(implicit session: ValpasSession): Either[HttpStatus, ValpasOppijaLaajatTiedot] = {
+    accessResolver.withOppijaAccessAsAnyRole(
+      Seq(
+        ValpasRooli.OPPILAITOS_HAKEUTUMINEN,
+        ValpasRooli.OPPILAITOS_SUORITTAMINEN,
+        ValpasRooli.KUNTA
+      )
+    )(oppija)
   }
 
   private def täydennäPohjatiedotOppijoidenTiedoilla(
