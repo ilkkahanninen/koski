@@ -25,6 +25,7 @@ import {
   jklNormaalikouluTableContent,
   openOppijaView,
 } from "./hakutilanne.shared"
+import { hkiTableContent } from "./kuntailmoitus.shared"
 import { jyväskylänNormaalikouluOid } from "./oids"
 
 type Oppija = {
@@ -64,6 +65,16 @@ type DisplayedIlmoitusData = DisplayedRequiredIlmoitusData &
 const opo = {
   email: "integraatiotesti@oph.fi",
   puhelin: "0505050505050",
+}
+
+const kuntakäyttäjä = {
+  email: "integraatiotesti.kunta@oph.fi",
+  puhelin: "04040404040",
+}
+
+const suorittamisenValvoja = {
+  email: "integraatiotesti.suorittaminen@oph.fi",
+  puhelin: "090909",
 }
 
 const oppijat: NonEmptyArray<Oppija> = [
@@ -132,6 +143,100 @@ const oppijat: NonEmptyArray<Oppija> = [
       maa: "Suomi",
       puhelin: undefined,
       email: undefined,
+      muuHaku: "Ei",
+    },
+  },
+]
+
+const kunnanOppijat: NonEmptyArray<Oppija> = [
+  {
+    oid: "1.2.246.562.24.00000000001",
+    title:
+      "Oppivelvollinen-ysiluokka-kesken-keväällä-2021 Valpas (221105A3023)",
+    prefill: 0,
+    expected: {
+      kohde: "Helsingin kaupunki",
+      tekijä: [
+        "käyttäjä valpas-helsinki",
+        kuntakäyttäjä.email,
+        kuntakäyttäjä.puhelin,
+        "Helsingin kaupunki",
+      ].join("\n"),
+      lähiosoite: "Esimerkkikatu 123",
+      postitoimipaikka: "00000 Helsinki",
+      maa: "Suomi",
+      puhelin: "0401234567",
+      email: "Valpas.Oppivelvollinen-ysiluokka-kesken-keväällä-2021@gmail.com",
+      muuHaku: "Ei",
+    },
+  },
+  {
+    oid: "1.2.246.562.24.00000000028",
+    title: "Epäonninen Valpas (301005A336J)",
+    fill: {
+      asuinkunta: "Pyhtää",
+      postinumero: "12345",
+      postitoimipaikka: "Pyhtää",
+      katuosoite: "Esimerkkikatu 1234",
+    },
+    expected: {
+      kohde: "Pyhtään kunta",
+      tekijä: [
+        "käyttäjä valpas-helsinki",
+        kuntakäyttäjä.email,
+        kuntakäyttäjä.puhelin,
+        "Helsingin kaupunki",
+      ].join("\n"),
+      lähiosoite: "Esimerkkikatu 1234",
+      postitoimipaikka: "12345 Pyhtää",
+      maa: "Suomi",
+      puhelin: undefined,
+      email: undefined,
+      muuHaku: "Ei",
+    },
+  },
+  {
+    oid: "1.2.246.562.24.00000000014",
+    title: "KasiinAstiToisessaKoulussaOllut Valpas (170805A613F)",
+    fill: {
+      asuinkunta: "Pyhtää",
+    },
+    expected: {
+      kohde: "Pyhtään kunta",
+      tekijä: [
+        "käyttäjä valpas-helsinki",
+        kuntakäyttäjä.email,
+        kuntakäyttäjä.puhelin,
+        "Helsingin kaupunki",
+      ].join("\n"),
+      lähiosoite: undefined,
+      postitoimipaikka: undefined,
+      maa: "Suomi",
+      puhelin: undefined,
+      email: undefined,
+      muuHaku: "Ei",
+    },
+  },
+]
+
+const suorittamisenValvojanOppijat: NonEmptyArray<Oppija> = [
+  {
+    oid: "1.2.246.562.24.00000000004",
+    title: "Lukio-opiskelija Valpas (070504A717P)",
+    prefill: 0,
+    expected: {
+      kohde: "Helsingin kaupunki",
+      tekijä: [
+        "käyttäjä valpas-pelkkä-suorittaminen",
+        suorittamisenValvoja.email,
+        suorittamisenValvoja.puhelin,
+        "Jyväskylän normaalikoulu",
+      ].join("\n"),
+      lähiosoite: "Esimerkkikatu 123",
+      postitoimipaikka: "00000 Helsinki",
+      maa: "Suomi",
+      puhelin: "0401234567",
+      email: "Lukio-opiskelija.Valpas@gmail.com",
       muuHaku: "Ei",
     },
   },
@@ -247,6 +352,97 @@ describe("Kuntailmoituksen tekeminen", () => {
 
       await openKuntailmoitusOppijanäkymässä()
       await fillTekijänTiedot()
+
+      const forms = await getIlmoitusForm()
+      expect(forms.length, "Lomakkeita näkyy vain yksi").toBe(1)
+      const form = forms[0]!!
+      expect(form.title).toBe(oppija.title)
+
+      await täytäJaLähetäLomake(oppija, form)
+
+      // Tarkista, että sulkemisnappulan teksti on vaihtunut
+      const button = await getCloseButton()
+      expect(await button.getText()).toBe("Valmis")
+
+      // Sulje lomake
+      await button.click()
+      await expectElementNotVisible(".modal__container")
+
+      // Tarkista, että ilmoituksen tiedot ovat tulleet näkyviin (automaattinen reload lomakkeen sulkemisen jälkeen)
+
+      expect(await getIlmoitusData()).toEqual(oppija.expected)
+    }
+  })
+
+  it("happy path kunnan käyttäjänä", async () => {
+    await loginAs(hakutilannePath, "valpas-helsinki", true)
+    await dataTableEventuallyEquals(".kuntailmoitus", hkiTableContent, "|")
+
+    for (const oppija of kunnanOppijat) {
+      // Tee ilmoitus oppijakohtaisesta näkymästä käsin, ja tarkista, että uuden ilmoituksen tiedot ilmestyvät näkyviin
+      await goToLocation(
+        createOppijaPath("/virkailija", {
+          oppijaOid: oppija.oid,
+        })
+      )
+      await urlIsEventually(
+        pathToUrl(
+          createOppijaPath("/virkailija", {
+            oppijaOid: oppija.oid,
+          })
+        )
+      )
+
+      await openKuntailmoitusOppijanäkymässä()
+      await fillTekijänTiedot(kuntakäyttäjä)
+
+      const forms = await getIlmoitusForm()
+      expect(forms.length, "Lomakkeita näkyy vain yksi").toBe(1)
+      const form = forms[0]!!
+      expect(form.title).toBe(oppija.title)
+
+      await täytäJaLähetäLomake(oppija, form)
+
+      // Tarkista, että sulkemisnappulan teksti on vaihtunut
+      const button = await getCloseButton()
+      expect(await button.getText()).toBe("Valmis")
+
+      // Sulje lomake
+      await button.click()
+      await expectElementNotVisible(".modal__container")
+
+      // Tarkista, että ilmoituksen tiedot ovat tulleet näkyviin (automaattinen reload lomakkeen sulkemisen jälkeen)
+
+      expect(await getIlmoitusData()).toEqual(oppija.expected)
+    }
+  })
+
+  it("happy path suorittamisen valvojana", async () => {
+    await loginAs(hakutilannePath, "valpas-pelkkä-suorittaminen", true)
+    await dataTableEventuallyEquals(
+      ".kayttooikeudet",
+      `
+      Oppilaitoksen oppivelvollisuuden suorittamisen valvonta
+      `
+    )
+
+    for (const oppija of suorittamisenValvojanOppijat) {
+      // Tee ilmoitus oppijakohtaisesta näkymästä käsin, ja tarkista, että uuden ilmoituksen tiedot ilmestyvät näkyviin
+      await goToLocation(
+        createOppijaPath("/virkailija", {
+          oppijaOid: oppija.oid,
+        })
+      )
+      await urlIsEventually(
+        pathToUrl(
+          createOppijaPath("/virkailija", {
+            oppijaOid: oppija.oid,
+          })
+        )
+      )
+
+      await openKuntailmoitusOppijanäkymässä()
+      await fillTekijänTiedot(suorittamisenValvoja)
 
       const forms = await getIlmoitusForm()
       expect(forms.length, "Lomakkeita näkyy vain yksi").toBe(1)
