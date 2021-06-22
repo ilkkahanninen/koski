@@ -3,7 +3,6 @@ package fi.oph.koski.valpas
 import fi.oph.koski.KoskiApplicationForTests
 import fi.oph.koski.http.{ErrorMatcher, KoskiErrorCategory}
 import fi.oph.koski.json.JsonSerializer
-import fi.oph.koski.koskiuser.UserWithPassword
 import fi.oph.koski.log.AuditLogTester
 import fi.oph.koski.organisaatio.MockOrganisaatiot
 import fi.oph.koski.schema.{Finnish, Koodistokoodiviite}
@@ -15,7 +14,6 @@ import fi.oph.koski.valpas.valpasuser.ValpasMockUsers
 import org.scalatest.BeforeAndAfterEach
 
 import java.time.LocalDate.{of => date}
-import fi.oph.koski.koskiuser.UserWithPassword
 
 class ValpasKuntailmoitusApiServletSpec extends ValpasTestBase with BeforeAndAfterEach {
   override protected def beforeEach() {
@@ -275,9 +273,7 @@ class ValpasKuntailmoitusApiServletSpec extends ValpasTestBase with BeforeAndAft
     }
   }
 
-  // TODO: Huom! Tämä hajoaa, kun kuntatoiminnallisuus toteutetaan. Toistaiseksi hyväksytään vain oppilaitokset,
-  // joten tarkistetaan tämäkin vielä.
-  "Kuntailmoituksen tekeminen käyttäen kuntaa tekijänä palauttaa virheen" in {
+  "Kuntailmoituksen tekeminen ilman kunta-oikeuksia käyttäen kuntaa tekijänä palauttaa virheen" in {
     val minimikuntailmoitusKäyttäenMuutaKuinKuntaaKohteena =
       teeMinimiKuntailmoitusInput(tekijäOid = MockOrganisaatiot.helsinginKaupunki)
 
@@ -286,15 +282,26 @@ class ValpasKuntailmoitusApiServletSpec extends ValpasTestBase with BeforeAndAft
       headers = authHeaders() ++ jsonContent
     ) {
       verifyResponseStatus(
-        400,
-        ValpasErrorCategory.validation.kuntailmoituksenTekijä(
-          s"Kuntailmoituksen tekijä ${MockOrganisaatiot.helsinginKaupunki} ei ole oppilaitos"
+        403,
+        ValpasErrorCategory.forbidden.organisaatio(
+          s"Käyttäjällä ei ole oikeutta tehdä kuntailmoitusta annetun organisaation nimissä"
         )
       )
     }
   }
 
-  "Kuntailmoituksen tekeminen käyttäen muuta kuin oppilaitosta tekijänä palauttaa virheen" in {
+  "Kuntailmoituksen tekeminen kunta-oikeuksilla käyttäen kuntaa tekijänä onnistuu" in {
+    val minimikuntailmoitusKäyttäenMuutaKuinKuntaaKohteena =
+      teeMinimiKuntailmoitusInput(tekijäOid = MockOrganisaatiot.helsinginKaupunki)
+    val user = ValpasMockUsers.valpasPyhtääJaHelsinki
+
+    post("/valpas/api/kuntailmoitus",
+      body = minimikuntailmoitusKäyttäenMuutaKuinKuntaaKohteena,
+      headers = authHeaders(user) ++ jsonContent
+    )(verifyResponseStatusOk())
+  }
+
+  "Kuntailmoituksen tekeminen käyttäen toimipistettä tekijänä palauttaa virheen" in {
     val minimikuntailmoitusKäyttäenMuutaKuinKuntaaKohteena =
       teeMinimiKuntailmoitusInput(tekijäOid = MockOrganisaatiot.lehtikuusentienToimipiste)
 
@@ -305,7 +312,7 @@ class ValpasKuntailmoitusApiServletSpec extends ValpasTestBase with BeforeAndAft
       verifyResponseStatus(
         400,
         ValpasErrorCategory.validation.kuntailmoituksenTekijä(
-          s"Kuntailmoituksen tekijä ${MockOrganisaatiot.lehtikuusentienToimipiste} ei ole oppilaitos"
+          s"Organisaatio ${MockOrganisaatiot.lehtikuusentienToimipiste} ei voi olla kuntailmoituksen tekijä (organisaation tyyppi ei ole sallittu)"
         )
       )
     }
